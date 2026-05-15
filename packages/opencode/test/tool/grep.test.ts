@@ -10,7 +10,7 @@ import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { Global } from "@opencode-ai/core/global"
 import { Truncate } from "@/tool/truncate"
 import { Agent } from "../../src/agent/agent"
-import { Ripgrep } from "../../src/file/ripgrep"
+import { Search } from "../../src/file/search"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { testEffect } from "../lib/effect"
 import { Reference } from "@/reference/reference"
@@ -33,7 +33,7 @@ const toolLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
   Layer.mergeAll(
     CrossSpawnSpawner.defaultLayer,
     AppFileSystem.defaultLayer,
-    Ripgrep.defaultLayer,
+    Search.defaultLayer,
     Truncate.defaultLayer,
     Agent.defaultLayer,
     Git.defaultLayer,

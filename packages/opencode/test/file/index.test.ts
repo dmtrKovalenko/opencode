@@ -2,6 +2,7 @@ import { afterEach, describe, expect } from "bun:test"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { $ } from "bun"
 import { Cause, Effect, Exit, Layer } from "effect"
+import { setTimeout as sleep } from "node:timers/promises"
 import path from "path"
 import fs from "fs/promises"
 import { File } from "../../src/file"
@@ -756,6 +757,8 @@ describe("file/index Filesystem patterns", () => {
           expect(yield* search({ query: "fresh", type: "file" })).toEqual([])
 
           yield* Effect.promise(() => fs.writeFile(path.join(test.directory, "fresh.ts"), "fresh", "utf-8"))
+          // fff guarantees eventual search consistency within 100ms after FS change
+          yield* Effect.promise(() => sleep(100))
 
           expect(yield* search({ query: "fresh", type: "file" })).toContain("fresh.ts")
         }),

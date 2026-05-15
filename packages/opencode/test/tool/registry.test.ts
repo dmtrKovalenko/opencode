@@ -25,7 +25,7 @@ import { Instruction } from "@/session/instruction"
 import { Bus } from "@/bus"
 import { FetchHttpClient } from "effect/unstable/http"
 import { Format } from "@/format"
-import { Ripgrep } from "@/file/ripgrep"
+import { Search } from "@/file/search"
 import * as Truncate from "@/tool/truncate"
 import { InstanceState } from "@/effect/instance-state"
 import { Reference } from "@/reference/reference"
@@ -66,7 +66,7 @@ const registryLayer = (opts: RegistryLayerOptions = {}) =>
       Layer.provide(FetchHttpClient.layer),
       Layer.provide(Format.defaultLayer),
       Layer.provide(node),
-      Layer.provide(Ripgrep.defaultLayer),
+      Layer.provide(Search.defaultLayer),
       Layer.provide(Truncate.defaultLayer),
     )
     .pipe(Layer.provide(RuntimeFlags.layer(opts.flags ?? {})))

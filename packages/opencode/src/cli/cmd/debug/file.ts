@@ -1,7 +1,7 @@
 import { EOL } from "os"
 import { Effect } from "effect"
 import { File } from "../../../file"
-import { Ripgrep } from "@/file/ripgrep"
+import { Search } from "@/file/search"
 import { effectCmd } from "../../effect-cmd"
 import { cmd } from "../cmd"
 
@@ -70,7 +70,7 @@ const FileTreeCommand = effectCmd({
       default: process.cwd(),
     }),
   handler: Effect.fn("Cli.debug.file.tree")(function* (args) {
-    const tree = yield* Effect.orDie(Ripgrep.Service.use((svc) => svc.tree({ cwd: args.dir, limit: 200 })))
+    const tree = yield* Effect.orDie(Search.Service.use((svc) => svc.tree({ cwd: args.dir, limit: 200 })))
     console.log(JSON.stringify(tree, null, 2))
   }),
 })

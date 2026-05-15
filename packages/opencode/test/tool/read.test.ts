@@ -7,6 +7,8 @@ import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { Global } from "@opencode-ai/core/global"
 import { Config } from "@/config/config"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { Git } from "@/git"
+import { Search } from "../../src/file/search"
 import { LSP } from "@/lsp/lsp"
 import { Permission } from "../../src/permission"
 import { SessionID, MessageID } from "../../src/session/schema"
@@ -52,6 +54,7 @@ const readLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
     Instruction.defaultLayer,
     LSP.defaultLayer,
     referenceLayer(flags),
+    Search.defaultLayer,
     Truncate.defaultLayer,
   )
 

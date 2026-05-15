@@ -14,7 +14,7 @@ import { Global } from "@opencode-ai/core/global"
 import { containsPath } from "../project/instance-context"
 import * as Log from "@opencode-ai/core/util/log"
 import { Protected } from "./protected"
-import { Ripgrep } from "./ripgrep"
+import { Search } from "./search"
 import { NonNegativeInt, type DeepMutable } from "@opencode-ai/core/schema"
 
 export const Info = Schema.Struct({
@@ -333,7 +333,7 @@ export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const appFs = yield* AppFileSystem.Service
-    const rg = yield* Ripgrep.Service
+    const searchSvc = yield* Search.Service
     const git = yield* Git.Service
     const scope = yield* Scope.Scope
 
@@ -375,7 +375,7 @@ export const layer = Layer.effect(
 
         next.dirs = Array.from(dirs).toSorted()
       } else {
-        const files = yield* rg.files({ cwd: ctx.directory }).pipe(
+        const files = yield* searchSvc.files({ cwd: ctx.directory }).pipe(
           Stream.runCollect,
           Effect.map((chunk) => [...chunk]),
         )
@@ -502,6 +502,7 @@ export const layer = Layer.effect(
       using _ = log.time("read", { file })
       const ctx = yield* InstanceState.context
       const full = path.join(ctx.directory, file)
+      const trackOpen = searchSvc.open({ cwd: ctx.directory, file }).pipe(Effect.ignore)
 
       if (!containsPath(full, ctx)) {
         throw new Error("Access denied: path escapes project directory")
@@ -509,21 +510,23 @@ export const layer = Layer.effect(
 
       if (isImageByExtension(file)) {
         const exists = yield* appFs.existsSafe(full)
-        if (exists) {
-          const bytes = yield* appFs.readFile(full).pipe(Effect.catch(() => Effect.succeed(new Uint8Array())))
-          return {
-            type: "text" as const,
-            content: Buffer.from(bytes).toString("base64"),
-            mimeType: getImageMimeType(file),
-            encoding: "base64" as const,
-          }
+        if (!exists) return { type: "text" as const, content: "" }
+        yield* trackOpen
+        const bytes = yield* appFs.readFile(full).pipe(Effect.catch(() => Effect.succeed(new Uint8Array())))
+        return {
+          type: "text" as const,
+          content: Buffer.from(bytes).toString("base64"),
+          mimeType: getImageMimeType(file),
+          encoding: "base64" as const,
         }
-        return { type: "text" as const, content: "" }
       }
 
       const knownText = isTextByExtension(file) || isTextByName(file)
 
-      if (isBinaryByExtension(file) && !knownText) return { type: "binary" as const, content: "" }
+      if (isBinaryByExtension(file) && !knownText) {
+        yield* trackOpen
+        return { type: "binary" as const, content: "" }
+      }
 
       const exists = yield* appFs.existsSafe(full)
       if (!exists) return { type: "text" as const, content: "" }
@@ -534,6 +537,7 @@ export const layer = Layer.effect(
       if (encode && !isImage(mimeType)) return { type: "binary" as const, content: "", mimeType }
 
       if (encode) {
+        yield* trackOpen
         const bytes = yield* appFs.readFile(full).pipe(Effect.catch(() => Effect.succeed(new Uint8Array())))
         return {
           type: "text" as const,
@@ -554,6 +558,7 @@ export const layer = Layer.effect(
           diff = yield* gitText(["-c", "core.fsmonitor=false", "diff", "--staged", "--", file])
         }
         if (diff.trim()) {
+          yield* trackOpen
           const original = yield* git.show(ctx.directory, "HEAD", file)
           const patch = structuredPatch(file, file, original, content, "old", "new", {
             context: Infinity,
@@ -561,9 +566,11 @@ export const layer = Layer.effect(
           })
           return { type: "text" as const, content, patch, diff: formatPatch(patch) }
         }
+        yield* trackOpen
         return { type: "text" as const, content }
       }
 
+      yield* trackOpen
       return { type: "text" as const, content }
     })
 
@@ -615,13 +622,28 @@ export const layer = Layer.effect(
       dirs?: boolean
       type?: "file" | "directory"
     }) {
-      yield* ensure()
-      const { cache } = yield* InstanceState.get(state)
-
       const query = input.query.trim()
       const limit = input.limit ?? 100
       const kind = input.type ?? (input.dirs === false ? "file" : "all")
       log.info("search", { query, kind })
+
+      if (query && kind === "file") {
+        const ctx = yield* InstanceState.context
+        const files = yield* searchSvc.file({
+          cwd: ctx.directory,
+          query,
+          limit,
+        }).pipe(Effect.orDie)
+        if (files === undefined) {
+          log.info("search", { query, kind, mode: "cache" })
+        } else {
+          log.info("search", { query, kind, results: files.length, mode: "fff" })
+          return files
+        }
+      }
+
+      yield* ensure()
+      const { cache } = yield* InstanceState.get(state)
 
       const preferHidden = query.startsWith(".") || query.includes("/.")
 
@@ -646,7 +668,7 @@ export const layer = Layer.effect(
 )
 
 export const defaultLayer = layer.pipe(
-  Layer.provide(Ripgrep.defaultLayer),
+  Layer.provide(Search.defaultLayer),
   Layer.provide(AppFileSystem.defaultLayer),
   Layer.provide(Git.defaultLayer),
 )
